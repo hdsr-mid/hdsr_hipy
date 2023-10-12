@@ -1,0 +1,33 @@
+site_name: Aanpassen Hydromedah
+site_url: https://hdsr-mid.github.io/hdsr_hipy
+theme:
+  name: "material"
+  language: en
+  logo: icons/logo/globe_only.png
+  favicon: icons/logo/favicon.png
+  highlightjs: true
+  palette: 
+    primary: blue
+  extra:
+    header: docs/header.html
+markdown_extensions:
+    - toc:
+        toc_depth : "1-1"
+
+plugins:
+  - search
+  - mkdocs-jupyter
+  
+extra:
+  social:
+    - icon: fontawesome/brands/github-alt
+      link: https://github.com/hdsr-mid/hdsr_hipy
+      
+extra_css:
+    - css/extra.css
+nav:
+    - Inleiding: index.md
+    - Updaten Hydromedah: updaten_hydromedah.ipynb
+    - Resultaat Hydromedah: resultaat_hydromedah.md
+    - Vergelijking Lateralen: vergelijking_laterals.ipynb
+    - Debietstatistieken: debietstatistieken.md
