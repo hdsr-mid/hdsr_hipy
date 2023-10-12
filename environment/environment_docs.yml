@@ -1,0 +1,11 @@
+name: mkdocs
+channels:
+  - conda-forge
+  - default
+dependencies:
+  - mkdocs
+  - mkdocs-jupyter
+  - mkdocs-material
+  - jupyter_contrib_nbextensions
+  - notebook==6.4.12
+ 
