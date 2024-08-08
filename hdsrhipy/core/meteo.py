@@ -20,6 +20,7 @@ import rioxarray as rio
 import imod
 import shutil
 import logging
+import base64
 logger = logging.getLogger(__name__)
 
 #%$
@@ -58,7 +59,7 @@ class Meteorology:
                 time='h'
             if timestep=='Days':
                 time = 'D'
-            time = np.datetime_as_string(arr['time'], unit=time)    
+            time = np.datetime_as_string(arr['time'], unit=time).replace('-', '').replace(':', '').replace(' ', '')    
             #time = np.datetime_as_string(arr['time'], unit=time)#[0:10]+np.datetime_as_string(arr['time'], unit='m')[11:13]+np.datetime_as_string(arr['time'], unit='m')[14:16]
             fn = variable+'_'+time+'.asc'    
             imod.rasterio.write( forcing_path / fn, arr, nodata=-999)
@@ -113,13 +114,12 @@ class Meteorology:
             None
         --------------------------------------------------------------------------------------------
         """
-        
         api_url = "https://api.dataplatform.knmi.nl/open-data"
         
         if api_key is None: 
             #api_key = self.select_key(dataset_name)
             # open data key:
-            api_key = 'eyJvcmciOiI1ZTU1NGUxOTI3NGE5NjAwMDEyYTNlYjEiLCJpZCI6ImNjOWE2YjM3ZjVhODQwMDZiMWIzZGIzZDRjYzVjODFiIiwiaCI6Im11cm11cjEyOCJ9'
+            api_key = 'eyJvcmciOiI1ZTU1NGUxOTI3NGE5NjAwMDEyYTNlYjEiLCJpZCI6ImE1OGI5NGZmMDY5NDRhZDNhZjFkMDBmNDBmNTQyNjBkIiwiaCI6Im11cm11cjEyOCJ9'
         if max_keys is None:
             max_keys = 10000
         if start_after is None:
@@ -167,7 +167,7 @@ class Meteorology:
         Get data from the WIWB API. Only grid data can be downloaded (for now).
         --------------------------------------------------------------------------------------------
         Input: 
-            -credentials: (username, password)-tuple to gain access to WIWB. Note that also the IP-address should be whitelisted by Hydrologic;
+            -credentials: (client_id, client_secret)-tuple to gain access to WIWB. Note that also the IP-address should be whitelisted by Hydrologic;
             -datasource: dataset name that is recognized by WIWB;
             -variable: variable string that is part of that dataset
             -start_time: start time (YYYYMMDDHHMMSS)
@@ -180,9 +180,10 @@ class Meteorology:
             None
         --------------------------------------------------------------------------------------------
         """
-   
+        
         # API settings
         api_url = 'https://wiwb.hydronet.com/api/'
+        api_url_auth = "https://login.hydronet.com/auth/realms/hydronet/protocol/openid-connect/token"
         if credentials is None:
             return('Credentials are needed, sorry.')            
             
@@ -200,14 +201,14 @@ class Meteorology:
             t_val = int(timestep[0])
         else:
             logger.error(f'Timestep {timestep} is not valid.')
-         
+        
         if extent is None:
             extent = [100000,430000,180000,480000]
          
         if ('International.Radar' in datasource) and (pd.to_datetime(start,format='%Y%m%d%H%M%S') < pd.to_datetime('2019-01-01')):
             logger.error('IRC is not available prior to 2019.')
-            sys.exit()
-               
+            raise ValueError
+        
         if variable == 'precipitation':
             varcode= 'P'
         elif variable == 'evaporation':
@@ -235,7 +236,7 @@ class Meteorology:
             }],
             "Exporter": { "DataFormatCode": "json" }
         }
-   
+
         #%%
         # update the request
         req_body['Readers'][0].update({'DataSourceCode': datasource})
@@ -245,13 +246,22 @@ class Meteorology:
         req_body['Readers'][0]['Settings']['Interval'].update({'Type': t_unit, 'Value': t_val})
         req_body['Readers'][0]['Settings']['Extent'].update({'Xll': extent[0], 'Yll': extent[1], 'Xur' : extent[2], 'Yur': extent[3]})
         
-        logger.info('Obtaining {datasource} from WIWB...')
-        r = requests.post(url, json=req_body, auth=credentials)
-        
+        # get token
+        authorization = base64.b64encode(bytes(credentials[0] + ":" + credentials[1], "ISO-8859-1")).decode("ascii")
+        headers = {"Authorization": f"Basic {authorization}", "Content-Type": "application/x-www-form-urlencoded"}
+        body = {"grant_type": "client_credentials"}
+        r = requests.post(api_url_auth, data=body, headers=headers)
         if r.status_code != 200:
-            logger.error(f"No valid connection to WIWB (error {r.status_code}), aborting download.")
-            sys.exit()
-            
+            logging.error(f"Could not request valid authentication token to WIWB (error {r.status_code}), aborting download.")
+            raise ValueError
+        wiwb_token = r.json().get("access_token")
+        auth_header = {"content-type": "application/json", "Authorization": "Bearer " + wiwb_token}
+
+        logger.info('Obtaining {datasource} from WIWB...')
+        r = requests.post(url, json=req_body, headers=auth_header)
+        if r.status_code != 200:            
+            logging.error(f"No valid connection to WIWB (error {r.status_code}), aborting download.")
+            raise ValueError     
         resdict = json.loads(r.content)
         
         if '9' in resdict['Meta']["Projections"]:
@@ -264,7 +274,7 @@ class Meteorology:
             xyll = (resdict['Data'][0]['GridDefinition']['Xll'],resdict['Data'][0]['GridDefinition']['Yll'])
         ncol=resdict['Data'][0]['GridDefinition']['Columns']
         nrow=resdict['Data'][0]['GridDefinition']['Rows']    
-         
+        
         times = pd.date_range(start=pd.to_datetime(start,format='%Y%m%d%H%M%S'),end=pd.to_datetime(end,format='%Y%m%d%H%M%S'), freq=timestep)[1:]    
         dat_arr = np.zeros((len(times), nrow, ncol))*np.nan        
         for i in range(len(times)):
@@ -288,5 +298,5 @@ class Meteorology:
         ds_rd = ds.rio.reproject_match(refrast)             
         #ds_rd = ds.rio.reproject(self.proj)
         self.write2ascii(ds_rd, variable, path=download_path, timestep=t_unit)
-         
+        
     

@@ -688,7 +688,7 @@ class Runfile():
                 mg.iy = np.repeat(year,ndays)
                 mg.td = np.arange(float(ndays))
                 mg.precgrid = [p for p in preclist if pd.to_datetime(os.path.splitext(os.path.basename(p))[0].split('_')[1],format='%Y%m%d').year == year]
-                mg.etrefgrid = [e for e in evaplist if pd.to_datetime(os.path.splitext(os.path.basename(e))[0].split('_')[2],format='%Y%m%d').year == year]                
+                mg.etrefgrid = [e for e in evaplist if pd.to_datetime(os.path.splitext(os.path.basename(e))[0].split('_')[1],format='%Y%m%d').year == year]                
                 mete_grid.append(mg)
         else:
             raise(ValueError(f'{pathname} does not exist.'))
