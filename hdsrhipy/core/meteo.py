@@ -182,7 +182,7 @@ class Meteorology:
         """
         
         # API settings
-        api_url = 'https://wiwb.hydronet.com/api/'
+        api_url = 'https://wiwb.hydronet.com/api'
         api_url_auth = "https://login.hydronet.com/auth/realms/hydronet/protocol/openid-connect/token"
         if credentials is None:
             return('Credentials are needed, sorry.')            
